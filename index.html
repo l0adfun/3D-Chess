@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Chess</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a1a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+    }
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    .menu-bar {
+      position: absolute;
+      top: env(safe-area-inset-top, 8px);
+      left: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.7);
+      color: #f5f5f5;
+      font-size: 11px;
+      backdrop-filter: blur(8px);
+      z-index: 20;
+    }
+    .menu-bar select,
+    .menu-bar button {
+      border: none;
+      outline: none;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.08);
+      color: #f5f5f5;
+      cursor: pointer;
+    }
+    .menu-bar select {
+      padding-right: 16px;
+    }
+    .menu-bar button:active {
+      background: rgba(255,255,255,0.18);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .turn-indicator {
+      position: absolute;
+      top: env(safe-area-inset-top, 8px);
+      right: 10px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(0,0,0,0.65);
+      color: #f5f5f5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+      backdrop-filter: blur(6px);
+    }
+    .turn-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f5f5f5;
+    }
+    .turn-indicator.white .turn-dot { background: #f5f5f5; }
+    .turn-indicator.black .turn-dot { background: #222; border: 1px solid #f5f5f5; }
+
+    .status-toast {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 8px) + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.7);
+      color: #f5f5f5;
+      font-size: 11px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      backdrop-filter: blur(8px);
+      max-width: 90%;
+      text-align: center;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .status-toast.visible {
+      opacity: 1;
+    }
+
+    .square-tooltip {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 8px) + 34px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.8);
+      color: #f5f5f5;
+      font-size: 11px;
+      pointer-events: none;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      backdrop-filter: blur(8px);
+      z-index: 15;
+    }
+
+    .square-tooltip.visible {
+      opacity: 1;
+    }
+
+    .joystick-container {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 10px) + 10px);
+      left: 10px;
+      width: 120px;
+      height: 120px;
+      touch-action: none;
+      z-index: 10;
+    }
+
+    .move-history {
+      position: absolute;
+      top: env(safe-area-inset-top, 8px);
+      right: 10px;
+      bottom: calc(env(safe-area-inset-bottom, 8px) + 8px);
+      width: 120px;
+      display: flex;
+      flex-direction: column;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.7);
+      color: #f5f5f5;
+      font-size: 10px;
+      backdrop-filter: blur(8px);
+      z-index: 15;
+      overflow: hidden;
+      pointer-events: auto;
+      transform-origin: right top;
+      transform: scale(1);
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .move-history.hidden {
+      transform: scale(0.9);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .move-history-header {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 500;
+    }
+
+    .move-history-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 6px 6px;
+    }
+
+    .move-history-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+      gap: 4px;
+      white-space: nowrap;
+    }
+
+    .move-history-row span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .move-history-row .move-index {
+      width: 16px;
+      opacity: 0.7;
+    }
+
+    .move-history-row .move-white,
+    .move-history-row .move-black {
+      flex: 1;
+      text-align: right;
+    }
+
+    .board-label {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+    .model-guide {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 8px) + 8px);
+      right: 10px;
+      left: 10px;
+      max-height: 40%;
+      display: flex;
+      flex-direction: column;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.8);
+      color: #f5f5f5;
+      font-size: 11px;
+      backdrop-filter: blur(10px);
+      z-index: 16;
+      padding: 10px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .model-guide.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+
+    .confirm-modal {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
+      z-index: 30;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .confirm-modal.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .confirm-modal-dialog {
+      background: rgba(12,12,12,0.95);
+      border-radius: 14px;
+      padding: 10px 12px;
+      max-width: 260px;
+      width: 80%;
+      color: #f5f5f5;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+      font-size: 12px;
+    }
+    .confirm-modal-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+    .confirm-modal-text {
+      opacity: 0.85;
+      margin-bottom: 10px;
+    }
+    .confirm-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .confirm-modal-actions button {
+      border: none;
+      outline: none;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .confirm-modal-cancel {
+      background: rgba(255,255,255,0.08);
+      color: #f5f5f5;
+    }
+    .confirm-modal-confirm {
+      background: #22c55e;
+      color: #02140a;
+      font-weight: 500;
+    }
+    .confirm-modal-actions button:active {
+      transform: translateY(1px);
+      opacity: 0.9;
+    }
+    .model-guide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .model-guide-header button {
+      border: none;
+      background: rgba(255,255,255,0.12);
+      color: inherit;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 10px;
+    }
+    .model-guide-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 10px;
+    }
+    .model-guide-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .model-guide-item-title {
+      font-weight: 500;
+    }
+    .model-guide-note {
+      margin-top: 6px;
+      opacity: 0.8;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://esm.sh/three@0.170.0",
+        "three/examples/jsm/controls/OrbitControls": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/loaders/GLTFLoader": "https://esm.sh/three@0.170.0/examples/jsm/loaders/GLTFLoader.js",
+        "chess.js": "https://esm.sh/chess.js@1.0.0",
+        "nipplejs": "https://esm.sh/nipplejs@0.9.1"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div class="menu-bar">
+      <select id="themeSelect">
+        <option value="classic">Classic</option>
+        <option value="christmas">Christmas</option>
+        <option value="winter">Winter</option>
+        <option value="summer">Summer</option>
+        <option value="red">Red</option>
+      </select>
+      <button id="newGameBtn">New</button>
+      <button id="flipBoardBtn">Flip</button>
+      <button id="toggleHistoryBtn">Moves</button>
+      <button id="saveGameBtn">Save</button>
+      <button id="loadGameBtn">Load</button>
+    </div>
+    <div id="turnIndicator" class="turn-indicator white">
+      <span class="turn-dot"></span>
+      <span id="turnLabel">White to move</span>
+    </div>
+    <div id="squareTooltip" class="square-tooltip"></div>
+    <div id="statusToast" class="status-toast"></div>
+    <div id="joystick" class="joystick-container" style="display:none;"></div>
+    <div id="moveHistory" class="move-history">
+      <div class="move-history-header">
+        <span>Move history</span>
+      </div>
+      <div id="moveHistoryList" class="move-history-list"></div>
+    </div>
+
+    <div id="newGameModal" class="confirm-modal">
+      <div class="confirm-modal-dialog">
+        <div class="confirm-modal-title">Start a new game?</div>
+        <div class="confirm-modal-text">
+          This will reset the board and clear the move history.
+        </div>
+        <div class="confirm-modal-actions">
+          <button id="cancelNewGameBtn" class="confirm-modal-cancel">Cancel</button>
+          <button id="confirmNewGameBtn" class="confirm-modal-confirm">New game</button>
+        </div>
+      </div>
+    </div>
+    <input
+      id="loadGameFileInput"
+      type="file"
+      accept="application/json,text/json,.json"
+      style="display:none"
+    />
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
